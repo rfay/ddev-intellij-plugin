@@ -5,6 +5,7 @@ import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.extensions.PluginId;
+import com.intellij.serviceContainer.NonInjectable;
 import de.php_perfect.intellij.ddev.DdevIntegrationBundle;
 import de.php_perfect.intellij.ddev.actions.OpenServiceAction;
 import de.php_perfect.intellij.ddev.cmd.Description;
@@ -12,6 +13,7 @@ import de.php_perfect.intellij.ddev.cmd.Service;
 import de.php_perfect.intellij.ddev.util.MapValueChanger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.TestOnly;
 
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -55,23 +57,25 @@ public final class ServiceActionManagerImpl implements ServiceActionManager, Dis
         }
     }
 
-    private void processService(String name, Service service, Map<@NotNull String, @NotNull AnAction> newActionsMap) {
-        String fullName = service.getFullName();
+    // Map.Entry<ServiceName, AnAction>
+    private Optional<Map.Entry<String, AnAction>> mapToServiceNameWithAction(Map.Entry<String, Service> serviceNameToActionEntry) {
+        String fullName = serviceNameToActionEntry.getValue().getFullName();
         URL url;
         try {
-            url = extractServiceUrl(service);
+            url = extractServiceUrl(serviceNameToActionEntry.getValue());
         } catch (MalformedURLException exception) {
             LOGGER.log(Level.WARNING, String.format("Skipping open action for service %s because of its invalid URL", fullName), exception);
-            return;
+            return Optional.empty();
         }
 
         if (url == null) {
-            return;
+            return Optional.empty();
         }
 
         final String actionId = ACTION_PREFIX + fullName;
-        final AnAction action = buildAction(name, url, fullName);
-        newActionsMap.put(actionId, action);
+        final AnAction action = buildAction(serviceNameToActionEntry.getKey(), url, fullName);
+
+        return Optional.of(new AbstractMap.SimpleImmutableEntry<>(actionId, action));
     }
 
     private @Nullable URL extractServiceUrl(Service service) throws MalformedURLException {

@@ -28,19 +28,13 @@ public class Description {
     @SerializedName("mailhog_url")
     private final @Nullable String mailHogHttpUrl;
 
-    private final @Nullable Map<String, Service> services;
+    private final Map<String, Service> services;
 
     @SerializedName("dbinfo")
     private final @Nullable DatabaseInfo databaseInfo;
 
-    public Description(@Nullable String name, @Nullable String phpVersion, @Nullable Status status, @Nullable String mailHogHttpsUrl, @Nullable String mailHogHttpUrl, @Nullable Map<String, Service> services, @Nullable DatabaseInfo databaseInfo) {
-        this.name = name;
-        this.phpVersion = phpVersion;
-        this.status = status;
-        this.mailHogHttpsUrl = mailHogHttpsUrl;
-        this.mailHogHttpUrl = mailHogHttpUrl;
-        this.services = services;
-        this.databaseInfo = databaseInfo;
+    public Description(@Nullable String name, @Nullable String phpVersion, @Nullable Status status, @Nullable String mailHogHttpsUrl, @Nullable String mailHogHttpUrl, @Nullable DatabaseInfo databaseInfo) {
+        this(name, phpVersion, status, mailHogHttpsUrl, mailHogHttpUrl, new HashMap<>(), databaseInfo);
     }
 
     public @Nullable String getName() {
@@ -68,7 +62,7 @@ public class Description {
             return new HashMap<>();
         }
 
-        return this.services;
+        return serviceMap;
     }
 
     public @Nullable DatabaseInfo getDatabaseInfo() {
