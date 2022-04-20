@@ -1,5 +1,6 @@
 package de.php_perfect.intellij.ddev.serviceActions;
 
+import com.google.common.collect.Maps;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.ActionManager;
@@ -10,26 +11,41 @@ import de.php_perfect.intellij.ddev.DdevIntegrationBundle;
 import de.php_perfect.intellij.ddev.actions.OpenServiceAction;
 import de.php_perfect.intellij.ddev.cmd.Description;
 import de.php_perfect.intellij.ddev.cmd.Service;
-import de.php_perfect.intellij.ddev.util.MapValueChanger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.TestOnly;
 
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.HashMap;
+import java.util.AbstractMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 public final class ServiceActionManagerImpl implements ServiceActionManager, Disposable {
     private static final PluginId PLUGIN_ID = PluginId.findId("de.php_perfect.intellij.ddev");
     private static final @NotNull Logger LOGGER = Logger.getLogger(ServiceActionManagerImpl.class.getName(), DdevIntegrationBundle.getName());
     private static final @NotNull String ACTION_PREFIX = "DdevIntegration.Services.";
 
-    private final @NotNull Map<@NotNull String, @NotNull AnAction> actionMap = new HashMap<>();
+    private final @NotNull Map<@NotNull String, @NotNull AnAction> actionMap = new ConcurrentHashMap<>();
 
-    public synchronized AnAction @NotNull [] getServiceActions() {
+    private final Supplier<ActionManager> actionManagerSupplier;
+
+    public ServiceActionManagerImpl() {
+        this(ActionManager::getInstance);
+    }
+
+    @NonInjectable
+    @TestOnly
+    public ServiceActionManagerImpl(Supplier<ActionManager> actionManagerSupplier) {
+        this.actionManagerSupplier = actionManagerSupplier;
+    }
+
+    public AnAction @NotNull [] getServiceActions() {
         return this.actionMap.values().toArray(new AnAction[0]);
     }
 
@@ -39,22 +55,21 @@ public final class ServiceActionManagerImpl implements ServiceActionManager, Dis
             return;
         }
 
-        final Map<@NotNull String, @NotNull AnAction> newActionsMap = new HashMap<>();
-        final Map<String, Service> serviceMap = description.getServices();
+        final Map<@NotNull String, @NotNull AnAction> newActionsMap = description.getServices()
+                .entrySet()
+                .stream()
+                .map(this::mapToServiceNameWithAction)
+                .flatMap(Optional::stream)
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-        for (Map.Entry<String, Service> entry : serviceMap.entrySet()) {
-            processService(entry.getKey(), entry.getValue(), newActionsMap);
-        }
+        var diff = Maps.difference(this.actionMap, newActionsMap);
 
-        if (description.getMailHogHttpsUrl() != null || description.getMailHogHttpUrl() != null) {
-            processService("mailhog", new Service("ddev-config-test-mailhog", description.getMailHogHttpsUrl(), description.getMailHogHttpUrl()), newActionsMap);
-        }
+        var actionManager = this.actionManagerSupplier.get();
+        diff.entriesOnlyOnLeft().forEach((key, value) -> actionManager.registerAction(key, value, PLUGIN_ID));
+        diff.entriesOnlyOnRight().forEach((key, value) -> actionManager.unregisterAction(key));
 
-        ActionManager actionManager = ActionManager.getInstance();
-
-        synchronized (this) {
-            MapValueChanger.apply(this.actionMap, newActionsMap, (String actionId, AnAction action) -> actionManager.unregisterAction(actionId), (String actionId, AnAction action) -> actionManager.registerAction(actionId, action, PLUGIN_ID));
-        }
+        this.actionMap.clear();
+        this.actionMap.putAll(newActionsMap);
     }
 
     // Map.Entry<ServiceName, AnAction>

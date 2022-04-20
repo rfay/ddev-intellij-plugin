@@ -37,6 +37,16 @@ public class Description {
         this(name, phpVersion, status, mailHogHttpsUrl, mailHogHttpUrl, new HashMap<>(), databaseInfo);
     }
 
+    public Description(@Nullable String name, @Nullable String phpVersion, @Nullable Status status, @Nullable String mailHogHttpsUrl, @Nullable String mailHogHttpUrl, Map<String, Service> services, @Nullable DatabaseInfo databaseInfo) {
+        this.name = name;
+        this.phpVersion = phpVersion;
+        this.status = status;
+        this.mailHogHttpsUrl = mailHogHttpsUrl;
+        this.mailHogHttpUrl = mailHogHttpUrl;
+        this.services = services;
+        this.databaseInfo = databaseInfo;
+    }
+
     public @Nullable String getName() {
         return name;
     }
@@ -58,8 +68,10 @@ public class Description {
     }
 
     public @NotNull Map<String, Service> getServices() {
-        if (this.services == null) {
-            return new HashMap<>();
+        var serviceMap = this.services;
+
+        if (this.getMailHogHttpsUrl() != null || this.getMailHogHttpUrl() != null) {
+            serviceMap.put("mailhog", new Service("ddev-config-test-mailhog", this.getMailHogHttpsUrl(), this.getMailHogHttpUrl()));
         }
 
         return serviceMap;
